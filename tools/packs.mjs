@@ -7,7 +7,9 @@ import { Listr } from "listr2";
 import pc from "picocolors";
 import * as fvtt from "@foundryvtt/foundryvtt-cli";
 
-const __filename = url.fileURLToPath(import.meta.url);
+// fileURLToPath yields backslashes on Windows; this module uses posix path semantics
+// throughout, so normalize to forward slashes before any path.* call touches it.
+const __filename = url.fileURLToPath(import.meta.url).replaceAll("\\", "/");
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, "..");
 
@@ -379,7 +381,7 @@ async function compilePack(name) {
 }
 
 // CLI handling
-if (process.argv[1] === __filename) {
+if (normalizePath(process.argv[1]) === __filename) {
   yargs(process.argv.slice(2))
     .demandCommand(1, 1, "You must specify a valid command")
     .strict()

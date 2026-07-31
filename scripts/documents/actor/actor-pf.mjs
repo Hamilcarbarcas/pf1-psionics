@@ -145,6 +145,27 @@ function calculateCasterLevel(actor, rollData, bookId, book) {
 
     setSourceInfoByName(actor.sourceInfo, key, actor.classes[book.class]?.name, value, true, "class");
   }
+
+  // ASTORA LOCAL PATCH: prestige-class manifester level offset.
+  // Mirrors core PF1's spellbook `cl.autoSpellLevelCalculationFormula` so a
+  // Cerebremancer/Thrallherd/etc. can advance an existing manifester. Unlike
+  // `cl.formula` (which only bumps the final manifester level), this feeds
+  // `classLevelTotal` — the value that drives power points and max power
+  // level — and so must be applied before that is stored.
+  const levelOffset = RollPF.safeRollSync(book.cl.autoLevelCalculationFormula || "0", rollData).total ?? 0;
+  if (levelOffset !== 0) {
+    // POINTS_PER_LEVEL is only keyed 1..20; an out-of-range level would silently
+    // zero out the manifester's power points.
+    classLevelTotal = Math.clamp(classLevelTotal + levelOffset, 1, 20);
+    clTotal += levelOffset;
+    setSourceInfoByName(
+        actor.sourceInfo,
+        key,
+        game.i18n.localize("PF1.AutoSpellClassLevelOffset.Formula"),
+        levelOffset,
+    );
+  }
+
   book.cl.classLevelTotal = classLevelTotal;
 
   // Add from bonus formula
