@@ -15,9 +15,30 @@ function shouldSkipInjection(actor) {
   return SKIPPED_SHEET_CLASSES.some((cls) => sheetsForType[cls]?.default);
 }
 
+/**
+ * Whether the psionics context was prepared for this render.
+ *
+ * The `_prepareItems` wrapper is registered on `ActorSheetPF.prototype`, but several
+ * sheets override that method without calling super (trap, haunt, vehicle and NPC Lite
+ * in the PF1 system, plus any third-party sheet that does the same). For those the
+ * wrapper never runs, so no psionics data reaches the template context — while the
+ * `renderActorSheetPF` hook still fires, because Foundry emits a render hook for every
+ * class in the sheet's prototype chain.
+ *
+ * `prepareManifesters` always assigns `manifesterData`, so `undefined` means the wrapper
+ * was bypassed; an actor with no manifesters gets an empty object instead.
+ *
+ * @param {object} data - The template context
+ * @returns {boolean}
+ */
+function hasPsionicsContext(data) {
+  return data.manifesterData !== undefined;
+}
+
 async function renderActorHook(app, html, data) {
   const actor = data.actor;
   if (shouldSkipInjection(actor)) return;
+  if (!hasPsionicsContext(data)) return;
   // Foundry v13 passes HTMLElement to render hooks; v12 passes jQuery. Normalize to HTMLElement.
   if (html instanceof jQuery) html = html[0];
   // Inject Settings
@@ -222,7 +243,7 @@ function injectManifesterCheckboxes(app, html, data) {
 }
 
 async function injectPsionicsTab(app, html, data) {
-  if (Object.values(data.manifesterData).some((manifester) => manifester.inUse)) {
+  if (Object.values(data.manifesterData ?? {}).some((manifester) => manifester.inUse)) {
     const tabSelector = html.querySelector("a[data-tab=skills]");
     const psionicsTab = document.createElement("a");
     psionicsTab.classList.add("item");
