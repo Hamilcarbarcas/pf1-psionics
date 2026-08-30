@@ -332,3 +332,7 @@ $RECYCLE.BIN/
 # Release build artifacts
 release-temp/
 module.zip
+
+# Fork bookkeeping — records local patches and their PR readiness.
+# Local to this checkout; must never travel in a PR to upstream.
+LOCAL-CHANGES.md

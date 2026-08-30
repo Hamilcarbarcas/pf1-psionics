@@ -106,13 +106,13 @@
           </div>
         </div>
 
-        {{! ASTORA LOCAL PATCH: prestige-class manifester level offset, mirroring
-            the "Class Level Modification" field on core PF1 spellbooks. }}
+        {{! Prestige-class level offset, mirroring the "Class Level Modification"
+            field on core PF1 spellbooks. }}
         <div class="help-text">
-          <i class="help-icon fa-solid fa-info-circle"></i> {{localize "PF1.AutoSpellClassLevelOffset.InfoBox"}}
+          <i class="help-icon fa-solid fa-info-circle"></i> {{localize "PF1-Psionics.ManifesterLevelOffset.InfoBox"}}
         </div>
         <div class="form-group formulas">
-          <h3>{{localize "PF1.AutoSpellClassLevelOffset.Formula"}}</h3>
+          <h3>{{localize "PF1-Psionics.ManifesterLevelOffset.Formula"}}</h3>
           <div class="form-fields">
             <input class="formula" type="text" name="flags.pf1-psionics.manifesters.{{bookId}}.cl.autoLevelCalculationFormula"
               value="{{cl.autoLevelCalculationFormula}}" placeholder="{{localize "PF1.Formula"}}">

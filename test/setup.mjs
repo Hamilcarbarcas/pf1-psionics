@@ -166,6 +166,35 @@ global.game = {
   }
 };
 
+// Mock the PF1 system global. Only the pieces the module reaches for are stubbed;
+// extend as more of the document layer comes under test.
+global.pf1 = {
+  documents: {
+    actor: {
+      changes: {
+        setSourceInfoByName: vi.fn()
+      }
+    }
+  }
+};
+
+// Mock PF1's roll helper. Tests override the implementation per-case.
+global.RollPF = {
+  safeRollSync: vi.fn((formula) => ({ total: Number(formula) || 0, isDeterministic: true }))
+};
+
+// Foundry extends Math with clamp; plain Node does not have it.
+Math.clamp ??= (value, min, max) => Math.min(Math.max(value, min), max);
+
+// Module files register hooks at import time.
+global.Hooks = {
+  on: vi.fn(),
+  once: vi.fn(),
+  off: vi.fn(),
+  call: vi.fn(),
+  callAll: vi.fn()
+};
+
 // Mock console methods to reduce noise in tests
 global.console = {
   ...console,

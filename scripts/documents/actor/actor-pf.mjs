@@ -115,7 +115,8 @@ function getBookLabel(actor, bookId, book) {
   return game.i18n.localize(`PF1.SpellBook${bookId.capitalize()}`);
 }
 
-function calculateCasterLevel(actor, rollData, bookId, book) {
+// Exported for unit testing.
+export function calculateCasterLevel(actor, rollData, bookId, book) {
   let clTotal = 0;
   const key = `flags.${MODULE_ID}.manifesters.${bookId}.cl.total`;
   const formula = book.cl.formula || "0";
@@ -146,22 +147,21 @@ function calculateCasterLevel(actor, rollData, bookId, book) {
     setSourceInfoByName(actor.sourceInfo, key, actor.classes[book.class]?.name, value, true, "class");
   }
 
-  // ASTORA LOCAL PATCH: prestige-class manifester level offset.
-  // Mirrors core PF1's spellbook `cl.autoSpellLevelCalculationFormula` so a
-  // Cerebremancer/Thrallherd/etc. can advance an existing manifester. Unlike
-  // `cl.formula` (which only bumps the final manifester level), this feeds
-  // `classLevelTotal` — the value that drives power points and max power
-  // level — and so must be applied before that is stored.
+  // Prestige-class level offset, for classes that advance an existing manifester
+  // (Cerebremancer, Thrallherd and the like). Distinct from `cl.formula` below,
+  // which only raises the final manifester level: this feeds `classLevelTotal`,
+  // the value driving power points and maximum power level, so it has to be
+  // applied before that is stored.
   const levelOffset = RollPF.safeRollSync(book.cl.autoLevelCalculationFormula || "0", rollData).total ?? 0;
   if (levelOffset !== 0) {
-    // POINTS_PER_LEVEL is only keyed 1..20; an out-of-range level would silently
-    // zero out the manifester's power points.
+    // POINTS_PER_LEVEL is only keyed 1..20; a level outside that range silently
+    // zeroes the manifester's power points.
     classLevelTotal = Math.clamp(classLevelTotal + levelOffset, 1, 20);
     clTotal += levelOffset;
     setSourceInfoByName(
         actor.sourceInfo,
         key,
-        game.i18n.localize("PF1.AutoSpellClassLevelOffset.Formula"),
+        game.i18n.localize("PF1-Psionics.ManifesterLevelOffset.Formula"),
         levelOffset,
     );
   }

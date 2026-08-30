@@ -17,6 +17,10 @@
     "ManifestingClass": "Manifesting Class",
     "ManifestingAbility": "Manifesting Ability",
     "ManifesterLevel": "Manifester Level",
+    "ManifesterLevelOffset": {
+      "Formula": "Class Level Modification",
+      "InfoBox": "If you have a prestige class that advances this manifester, add that here (e.g. @classes.cerebremancer.unlevel). Use .unlevel rather than .level so negative levels are not counted twice."
+    },
     "PsionicDC": "Psionic DC",
     "PsionicResistance": "Psionic Resistance",
     "Skills": {

@@ -6,8 +6,8 @@ export const MANIFESTER =  {
         class: "",
         cl: {
             formula: "",
-            // ASTORA LOCAL PATCH: prestige-class manifester level offset (mirrors
-            // core PF1's spellbook `cl.autoSpellLevelCalculationFormula`).
+            // Prestige-class level offset, the psionic counterpart to a core PF1
+            // spellbook's `cl.autoSpellLevelCalculationFormula`.
             autoLevelCalculationFormula: "",
             notes: "",
         },

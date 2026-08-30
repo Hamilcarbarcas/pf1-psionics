@@ -8,34 +8,28 @@ Fork-tracking record for this checkout of **pf1-psionics**.
   compendiums", #77, 2026-05-22)
 - **Module version at time of forking:** 0.9.1
 
-Every entry below records what changed, why, which files it touches, and whether it is
-worth sending upstream. This file is fork bookkeeping — **do not include it in a PR to
-upstream.**
+Three independent changes live on this branch. Each section below is written as a ready
+PR description — title, body, and the notes a reviewer will want — and should go upstream
+as its **own** branch and PR, in the order given. They touch unrelated subsystems and
+mixing them would make all three harder to review.
 
-## Re-applying after an update
+All changes are PR-clean as of 2026-08-30: no downstream-only markers, no borrowed
+localization keys, `npm run lint` clean, `npm test` 98/98 passing, and all three exercised
+in a live Foundry v13 / PF1 v11.11 world.
 
-This module has no build step, so `scripts/` and `templates/` edits are live. When
-upstream releases a new version, rebase `local-mods` onto it and re-verify each entry
-still applies; the two manifester-offset entries are hand-written against code that
-upstream may have moved.
-
-Entries carrying an in-source marker use the comment `ASTORA LOCAL PATCH`, so
-`grep -rn "ASTORA LOCAL PATCH" scripts/ templates/` finds them all. Note that anything
-sent upstream needs that marker and the "Astora" name stripped first — it refers to a
-private downstream module and means nothing to upstream readers.
+**Do not include this file in any PR** — it is fork bookkeeping.
 
 ---
 
-## 1. Trap/haunt/vehicle/NPC-Lite sheets throw on render
+# PR 1 — Fix `TypeError` when rendering trap, haunt, vehicle and NPC Lite sheets
 
-**Status:** upstream bug fix — **good PR candidate, send this one first**
-**Date:** 2026-08-30
-**Commit:** not yet committed
+**Branch:** `fix/sheet-render-crash`
 **Files:** `scripts/applications/actor/actor-sheet.mjs`
+**Type:** bug fix · **Send first** — smallest, most obviously correct, no dependencies
 
-### Symptom
+## Description
 
-Opening the sheet of a **trap** actor threw, and the sheet rendered incomplete:
+Opening a trap actor's sheet throws and leaves the sheet partly unrendered:
 
 ```
 actor-sheet.mjs:225 Uncaught (in promise) TypeError: Cannot convert undefined or null to object
@@ -45,25 +39,28 @@ actor-sheet.mjs:225 Uncaught (in promise) TypeError: Cannot convert undefined or
     at ActorSheetPFTrap._render (foundry.mjs:37406:10)
 ```
 
-### Cause
+The same throw occurs on haunt, vehicle and **NPC Lite** sheets. NPC Lite is the one most
+likely to be hit in a real world — it is an ordinary `npc`, not an exotic actor type.
 
-Two gates in this module disagree about which sheets it applies to.
+## Cause
 
-The data-prep side registers its wrapper on the base prototype:
+The module's two halves disagree about which sheets they cover.
+
+The data-prep half registers its wrapper on the base prototype:
 
 ```js
 libWrapper.register(MODULE_ID, "pf1.applications.actor.ActorSheetPF.prototype._prepareItems", ...)
 ```
 
-which calls `prepareManifesters()` and is the only thing that ever assigns
+This calls `prepareManifesters()`, the only thing that ever assigns
 `context.manifesterData`.
 
-The injection side listens on `renderActorSheetPF`. Foundry's AppV1 `_callHooks` walks
-the entire constructor chain and emits a render hook for **every** class name in it, so
-that hook fires for all `ActorSheetPF` subclasses.
+The injection half listens on `renderActorSheetPF`. Foundry's AppV1 `_callHooks` walks the
+whole constructor chain and emits a render hook for **every** class name in it, so that
+hook fires for all `ActorSheetPF` subclasses.
 
 Four PF1 sheets override `_prepareItems` without calling `super`, which shadows the
-wrapped method on the parent prototype so the wrapper never runs:
+wrapped method on the parent prototype, so the wrapper never runs for them:
 
 | Sheet | PF1 source | Actor type |
 | --- | --- | --- |
@@ -72,132 +69,158 @@ wrapped method on the parent prototype so the wrapper never runs:
 | `ActorSheetPFVehicle` | `module/applications/actor/vehicle-sheet.mjs:396` | `vehicle` |
 | `ActorSheetPFNPCLite` | `module/applications/actor/npc-lite-sheet.mjs:33` | `npc` |
 
-For those, `renderActorHook` runs against a context with no psionics data at all, and
+`renderActorHook` therefore runs against a context with no psionics data at all, and
 `injectPsionicsTab` dereferenced `data.manifesterData` unguarded.
 
-NPC Lite is the one that matters most in practice — it is an ordinary `npc`, not an
-exotic actor type, so any world using the Lite sheet hits this.
+## Fix
 
-`SKIPPED_SHEET_CLASSES` does not help here: it is a list of *sheet class names* aimed at
-sheets where the data **is** prepared but a psionics tab is unwanted (pf1alt, loot
-sheets). That list is still needed and is left alone.
+Adds `hasPsionicsContext(data)` and an early return in `renderActorHook`, before any
+injection runs. It tests `data.manifesterData !== undefined`, which is a precise probe for
+"did the `_prepareItems` wrapper run for this sheet": `prepareManifesters` always assigns
+the key, giving `{}` for an actor with no manifesters, so `undefined` can only mean the
+wrapper was bypassed.
 
-### Fix
+Bailing before `injectSettings` also prevents the empty "Psionics" heading that
+`injectPsionicsDiv` would otherwise append to those sheets' `.settings` block.
 
-Added `hasPsionicsContext(data)` and an early return in `renderActorHook`, before any
-injection runs. It tests `data.manifesterData !== undefined`, which is a precise probe
-for "did the `_prepareItems` wrapper run for this sheet": `prepareManifesters` always
-assigns the key, giving `{}` for an actor with no manifesters, so `undefined` can only
-mean the wrapper was bypassed.
+The original crash site is additionally guarded with `data.manifesterData ?? {}`, matching
+the guard already used on the same field inside the `_prepareItems` wrapper.
 
-Chosen over an actor-type allowlist (`["character", "npc"]`, matching this module's
-`onPreCreateActor` gate) because a type gate would not catch NPC Lite, and over
-extending `SKIPPED_SHEET_CLASSES` because a name list cannot cover third-party sheets
-that override `_prepareItems` the same way.
+## Notes for the reviewer
 
-Bailing before `injectSettings` also stops the empty "Psionics" heading that
-`injectPsionicsDiv` would otherwise append to any such sheet's `.settings` block.
+Two alternatives were considered and rejected:
 
-Also hardened the original crash site with `data.manifesterData ?? {}`, matching the
-guard already used on the same field inside the `_prepareItems` wrapper.
+- **An actor-type allowlist** (`["character", "npc"]`, matching this module's own
+  `onPreCreateActor` gate) would not catch NPC Lite, which is an `npc`.
+- **Extending `SKIPPED_SHEET_CLASSES`** cannot cover third-party sheets that override
+  `_prepareItems` the same way, and would need a new entry for every such sheet.
 
-### Verification
+`SKIPPED_SHEET_CLASSES` is deliberately left untouched. It solves a different problem —
+sheets where the data *is* prepared but a psionics tab is unwanted (pf1alt, loot sheets) —
+and is still needed.
 
-`npm run lint` clean, `npm test` 92/92 passing. Needs an in-Foundry check: open a trap
-actor sheet, and an NPC using the Lite sheet, and confirm no console error and no stray
-psionics markup. Requires only an F5, no Foundry restart.
+## Testing
+
+`npm run lint` clean, `npm test` passing.
+
+Verified in Foundry v13 with PF1 v11.11: opening a trap actor sheet and an NPC using the
+Lite sheet renders cleanly with no console error and no stray psionics markup, and a
+character sheet with an active manifester is unaffected.
 
 ---
 
-## 2. Prestige-class manifester level offset
+# PR 2 — Add a manifester "Class Level Modification" field for prestige classes
 
-**Status:** feature — **upstreamable, but needs cleanup first** (see below)
-**Date:** 2026-07-27, committed 2026-07-31
-**Commit:** `98391b8` "Added local patches for prestige class manifester level offsets"
-**Files:** `scripts/data/manifesters.mjs`, `scripts/documents/actor/actor-pf.mjs`
-(in `calculateCasterLevel`), `templates/actor/actor-manifester.hbs`
+**Branch:** `feat/manifester-level-offset`
+**Files:** `scripts/data/manifesters.mjs`, `scripts/documents/actor/actor-pf.mjs`,
+`templates/actor/actor-manifester.hbs`, `lang/en.json`, `test/setup.mjs`,
+`test/unit/caster-level.test.mjs`
+**Type:** feature · **Send last** — largest surface, has open design questions
 
-### Why
+## Description
 
-Stock pf1-psionics has no way to let a prestige class advance an existing manifester.
+There is currently no way to let a prestige class advance an existing manifester, so
+Cerebremancer, Thrallherd and similar classes cannot be modelled.
+
 `book.cl.classLevelTotal` is derived from the manifesting class's own level, and the
 existing `cl.formula` bonus reaches `cl.total` only — it never feeds `classLevelTotal`,
-which is the value that drives power points and maximum power level. So a
-Cerebremancer (or Thrallherd, or any other psionic PrC) cannot be modelled at all.
+which is the value driving power points and maximum power level. So no existing field can
+do this.
 
-Core PF1 solves the same problem for spellbooks with
-`cl.autoSpellLevelCalculationFormula`. This patch adds the psionic equivalent.
+Core PF1 solves the identical problem for spellbooks with
+`cl.autoSpellLevelCalculationFormula` ("Class Level Modification"). This adds the psionic
+counterpart, `cl.autoLevelCalculationFormula`.
 
-### What it does
+## What changed
 
 - **`scripts/data/manifesters.mjs`** — adds `cl.autoLevelCalculationFormula: ""` to the
   default manifester template.
-- **`scripts/documents/actor/actor-pf.mjs`** — in `calculateCasterLevel`, evaluates that
+- **`scripts/documents/actor/actor-pf.mjs`** — in `calculateCasterLevel`, evaluates the
   formula and applies the result to **both** `classLevelTotal` and `clTotal`, before
-  `classLevelTotal` is stored. Clamped to 1–20 because `POINTS_PER_LEVEL` is only keyed
-  for those levels and an out-of-range level silently zeroes the manifester's power
-  points. Registers source info so the bonus is visible in the UI.
-- **`templates/actor/actor-manifester.hbs`** — adds the "Class Level Modification" input
-  and its help text, mirroring the core PF1 spellbook field.
+  `classLevelTotal` is stored. Registers source info so the bonus is visible in the UI.
+- **`templates/actor/actor-manifester.hbs`** — adds the input and its help text, laid out
+  to match the core PF1 spellbook field.
+- **`lang/en.json`** — adds `PF1-Psionics.ManifesterLevelOffset.Formula` / `.InfoBox`.
 
-### Notes for upstreaming
+## Notes for the reviewer
 
-- The three edits reuse core PF1's localization keys
-  (`PF1.AutoSpellClassLevelOffset.Formula` / `.InfoBox`), which say "spell". Upstream
-  would want module-owned keys under `PF1-Psionics.*` in `lang/en.json` instead.
-- The `ASTORA LOCAL PATCH` comments must be rewritten as ordinary explanatory comments.
-- No migration is included. Existing manifester flags lack the new key; reads fall back
-  to `"0"` via `book.cl.autoLevelCalculationFormula || "0"`, so it degrades safely, but
-  upstream may still want a migration to write the field explicitly.
-- No unit test covers `calculateCasterLevel`. Worth adding one before submitting.
+**The help text deliberately differs from core PF1's.** Core's `InfoBox` suggests
+`@classes.mysticTheurge.level`, which is wrong: `level` is already `unlevel` minus negative
+levels (`actor-pf.mjs:4791` in the PF1 system), and energy drain is subtracted again from
+`cl.total` at the end of `calculateCasterLevel`. Using `.level` therefore double-counts the
+drain penalty. The book's own class contribution uses `rollData.class.unlevel`, so this
+help text says `.unlevel` and explains why. There is a regression test covering it.
 
-### Downstream consumer
+**Open question — where the 1..20 clamp belongs.** `POINTS_PER_LEVEL` is only keyed for
+levels 1–20, and an out-of-range level silently zeroes the manifester's power points rather
+than failing loudly. The offset is clamped at the point of application to avoid that. It
+may belong at the `POINTS_PER_LEVEL` lookup instead, which would be a broader change and is
+left to your call. Note the clamp only runs when the offset is non-zero, so it cannot
+change behaviour for anyone not using the field.
 
-`astora-mod`'s `cerebremancer-spells-per-day.create.js` depends on this and detects a
-missing patch by checking whether `cl.classLevelTotal` actually moved after writing the
-field. A fuller per-file description lives in that module's
-`scripts/reference/README.md` under "PF1-Psionics manifester level offset".
+**No migration is included.** Existing manifester flags lack the new key; reads fall back
+via `book.cl.autoLevelCalculationFormula || "0"` and the template input renders empty, so
+it degrades safely.
+
+**`calculateCasterLevel` is now exported**, solely so the test can reach it — flagged in a
+comment.
+
+## Testing
+
+Adds `test/unit/caster-level.test.mjs` (6 cases): no-offset regression, offset reaching
+both totals, both clamp bounds, source-info reporting, and the negative-levels
+single-subtraction guard.
+
+This is the first test to touch the document layer, so `test/setup.mjs` gains stubs for
+`pf1.documents.actor.changes.setSourceInfoByName`, `RollPF.safeRollSync`, `Hooks`, and a
+`Math.clamp` polyfill (Foundry extends `Math`; plain Node does not). Existing tests are
+unaffected — full suite 98/98.
+
+Verified in Foundry v13 with PF1 v11.11 on a Psion/Cerebremancer: power points, maximum
+power level and manifester level all advance correctly, the new field and its help text
+render on the manifester config, and the offset appears by name in the manifester-level
+tooltip.
 
 ---
 
-## 3. Windows path handling in the pack tool
+# PR 3 — Fix `packs:compile` and `packs:extract` silently doing nothing on Windows
 
-**Status:** cross-platform bug fix — **good PR candidate, small and self-contained**
-**Date:** 2026-07-31 (same commit as entry 2)
-**Commit:** `98391b8`
+**Branch:** `fix/windows-pack-paths`
 **Files:** `tools/packs.mjs`
+**Type:** bug fix · **Send second** — independent and trivial to review
 
-### Why
+## Description
 
-`npm run packs:compile` and `packs:extract` were no-ops on Windows: the CLI entry guard
-never matched, so the script exited silently having done nothing.
+On Windows, `npm run packs:compile` and `npm run packs:extract` exit successfully having
+done nothing at all. No error, no output — the pack simply is not built.
 
-`url.fileURLToPath(import.meta.url)` returns a backslash path on Windows
-(`C:\...\tools\packs.mjs`), while `process.argv[1]` and the rest of this module use
-POSIX-style forward slashes. The equality test `process.argv[1] === __filename`
-therefore always failed.
+The CLI entry guard compares two path strings that use different separators:
 
-### What it does
+```js
+const __filename = url.fileURLToPath(import.meta.url);   // C:\...\tools\packs.mjs
+...
+if (process.argv[1] === __filename) {                    // C:/.../tools/packs.mjs
+```
 
-- Normalizes `__filename` to forward slashes at definition, so every downstream
+`url.fileURLToPath` returns a backslash path on Windows, while `process.argv[1]` and the
+rest of this module use forward slashes. The comparison never matches, so the yargs block
+never runs.
+
+## Fix
+
+- Normalizes `__filename` to forward slashes at its definition, so every downstream
   `path.*` call sees consistent separators.
-- Compares against `normalizePath(process.argv[1])` rather than the raw value. The
-  `normalizePath` helper already existed in this file (`tools/packs.mjs:24`) and was
-  already used elsewhere in it — this just applies it at the entry guard too.
+- Compares against `normalizePath(process.argv[1])` rather than the raw value.
 
-### Notes for upstreaming
+`normalizePath` already exists in this file (`tools/packs.mjs:24`) and is already used for
+the same purpose elsewhere in it; this just applies it at the entry guard too.
 
-Clean as-is; carries no `ASTORA` marker and no downstream coupling. Upstream is
-presumably developed on Linux/macOS, so this is a pure portability fix with no
-behavioural change on those platforms.
+## Notes for the reviewer
 
----
+No behavioural change on Linux or macOS — `fileURLToPath` already returns forward slashes
+there and `replaceAll("\\", "/")` is a no-op. Pure portability fix.
 
-## Suggested PR order
+## Testing
 
-1. **Entry 1** (sheet crash) — a bug fix against current upstream, no dependencies,
-   should go out on its own.
-2. **Entry 3** (Windows paths) — independent, trivial to review.
-3. **Entry 2** (manifester offset) — a feature; do the localization keys, comment
-   rewrite and a test first, and expect discussion about whether the clamp belongs in
-   `calculateCasterLevel` or in the power-point lookup.
+Verified on Windows 10: `npm run packs:extract` and `npm run packs:compile` both produce
+output with the fix and are silent no-ops without it.
