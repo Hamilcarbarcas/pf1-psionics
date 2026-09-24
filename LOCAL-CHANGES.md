@@ -8,7 +8,7 @@ Fork-tracking record for this checkout of **pf1-psionics**.
   compendiums", #77, 2026-05-22)
 - **Module version at time of forking:** 0.9.1
 
-Three independent changes live on this branch. Each section below is written as a ready
+Four independent changes live on this branch. Each section below is written as a ready
 PR description — title, body, and the notes a reviewer will want — and should go upstream
 as its **own** branch and PR, in the order given. They touch unrelated subsystems and
 mixing them would make all three harder to review.
@@ -224,3 +224,43 @@ there and `replaceAll("\\", "/")` is a no-op. Pure portability fix.
 
 Verified on Windows 10: `npm run packs:extract` and `npm run packs:compile` both produce
 output with the fix and are silent no-ops without it.
+
+---
+
+# PR 4 — Fix section filters on the Psionics tab and the combat-tab Powers section
+
+**Branch:** `fix/section-filters`
+**Files:** `scripts/applications/actor/actor-sheet.mjs`
+**Type:** bug fix · independent of PRs 1–3
+
+## Description
+
+Two filter bugs, both visible as "Filter out empty sections" not hiding anything:
+
+1. **Psionics tab:** none of the filter pills work, "empty" included.
+2. **Combat tab:** the Powers section shows even when it has no powers, and ignores both
+   the "empty" filter and the other section filter pills.
+
+## Cause
+
+1. A regression from #75 ("reduce jquery reliance"). The jQuery delegated handler
+   `filterLists.on("click", ".filter-rule", …)` set `event.currentTarget` to the clicked
+   `li`. The native replacement listens on the `ul`, so `currentTarget` is the `ul`, which
+   has no `data-category` / `data-filter`. PF1's `_onToggleFilter` then toggles
+   `_filters.sections[undefined]` and nothing changes.
+2. `addPowersToCombatTab` runs after `wrapped(context)`, by which point PF1's
+   `_prepareItems` has already dropped empty `hideEmpty` sections (`actor-sheet.mjs:3970` in
+   the PF1 system) and run `_filterSection` over the `attacks` category (`:3998`). The Powers
+   section is added after both passes, so neither applies to it.
+
+## Fix
+
+1. Binds `_onToggleFilter` to each `.filter-rule` directly, so `currentTarget` is the `li`
+   again.
+2. In `addPowersToCombatTab`, an empty Powers section is dropped (mirroring PF1's
+   `hideEmpty` handling), and a non-empty one gets `_filterSection` with the `attacks`
+   filter set.
+
+## Testing
+
+`npm run lint` clean, `npm test` 98/98 passing. Not yet verified in Foundry.

@@ -376,10 +376,9 @@ function injectEventListeners(app, html, _data) {
   // Activate Item Filters
   const filterLists = manifestersBodyElement.querySelectorAll(".filter-list");
   filterLists.forEach((el, i) => app._initializeFilterItemList(i, el));
-  for (const list of filterLists) {
-    list.addEventListener("click", (event) => {
-      if (event.target.closest(".filter-rule")) app._onToggleFilter(event);
-    });
+  // Bound per rule: _onToggleFilter reads its dataset from event.currentTarget
+  for (const rule of manifestersBodyElement.querySelectorAll(".filter-list .filter-rule")) {
+    rule.addEventListener("click", app._onToggleFilter.bind(app));
   }
 
   // Search boxes
@@ -445,6 +444,18 @@ function addPowersToCombatTab(sheet, context) {
   const attacks = context.attacks;
   if (!attacks) return;
 
+  // Filter powers with showInCombat flag
+  const powers = context.items.filter(i =>
+    i.type === `${MODULE_ID}.power` && i.document.system.showInCombat
+  );
+
+  // PF1 drops empty hideEmpty sections before this runs; do the same here
+  if (!powers.length) {
+    const idx = attacks.findIndex(s => s.id === "power");
+    if (idx !== -1) attacks.splice(idx, 1);
+    return;
+  }
+
   // Find or create the power section
   let powerSection = attacks.find(s => s.id === "power");
 
@@ -471,11 +482,6 @@ function addPowersToCombatTab(sheet, context) {
     powerSection.powerPoints = context.psionics?.powerPoints;
   }
 
-  // Filter powers with showInCombat flag
-  const powers = context.items.filter(i =>
-    i.type === `${MODULE_ID}.power` && i.document.system.showInCombat
-  );
-
   // Modify power items to show base PP cost instead of charges
   powers.forEach(power => {
     // Store the base PP cost for display
@@ -486,6 +492,10 @@ function addPowersToCombatTab(sheet, context) {
 
   // Add powers to the section
   powerSection.items = powers;
+
+  // PF1's section filter pass has already run, so apply the combat filters here
+  const filterSet = sheet._filters.sections.attacks;
+  if (filterSet) sheet._filterSection({ key: "attacks" }, powerSection, filterSet);
 }
 
 function prepareManifesters(sheet, context) {
