@@ -4,18 +4,20 @@ Fork-tracking record for this checkout of **pf1-psionics**.
 
 - **Upstream:** <https://github.com/SoxMax/pf1-psionics>
 - **Fork:** <https://github.com/Hamilcarbarcas/pf1-psionics> (`origin`)
-- **Branch:** `local-mods`, based on upstream `cb53e4d` ("Fix errors when opening actor
-  compendiums", #77, 2026-05-22)
-- **Module version at time of forking:** 0.9.1
+- **Branch:** `local-mods`, forked at upstream `cb53e4d` ("Fix errors when opening actor
+  compendiums", #77, 2026-05-22) and merged up to upstream `584710c` ("version bump", #81,
+  2026-09-16) on 2026-10-10
+- **Module version:** 0.9.3 (0.9.1 at time of forking)
 
 Four independent changes live on this branch. Each section below is written as a ready
 PR description — title, body, and the notes a reviewer will want — and should go upstream
 as its **own** branch and PR, in the order given. They touch unrelated subsystems and
-mixing them would make all three harder to review.
+mixing them would make all four harder to review.
 
-All changes are PR-clean as of 2026-08-30: no downstream-only markers, no borrowed
-localization keys, `npm run lint` clean, `npm test` 98/98 passing, and all three exercised
-in a live Foundry v13 / PF1 v11.11 world.
+All changes are PR-clean as of 2026-10-10: no downstream-only markers, no borrowed
+localization keys, `npm run lint` clean, and `npm test` 115/115 passing on top of upstream
+`584710c`. PRs 1–3 were exercised in a live Foundry v13 / PF1 v11.11 world before the merge;
+PR 4 has not been verified in Foundry yet.
 
 **Do not include this file in any PR** — it is fork bookkeeping.
 
@@ -174,7 +176,7 @@ single-subtraction guard.
 This is the first test to touch the document layer, so `test/setup.mjs` gains stubs for
 `pf1.documents.actor.changes.setSourceInfoByName`, `RollPF.safeRollSync`, `Hooks`, and a
 `Math.clamp` polyfill (Foundry extends `Math`; plain Node does not). Existing tests are
-unaffected — full suite 98/98.
+unaffected — full suite 115/115.
 
 Verified in Foundry v13 with PF1 v11.11 on a Psion/Cerebremancer: power points, maximum
 power level and manifester level all advance correctly, the new field and its help text
@@ -263,4 +265,4 @@ Two filter bugs, both visible as "Filter out empty sections" not hiding anything
 
 ## Testing
 
-`npm run lint` clean, `npm test` 98/98 passing. Not yet verified in Foundry.
+`npm run lint` clean, `npm test` 115/115 passing. Not yet verified in Foundry.
