@@ -23,7 +23,7 @@ system:
       operator: add
       priority: 0
       target: nac
-      type: untyped
+      type: base
   description:
     value: >-
       <p>@UUID[Compendium.pf1-psionics.powers.Item.2zGndi6SFDsb62cx]{Toughen}</p><p></p><p>+1

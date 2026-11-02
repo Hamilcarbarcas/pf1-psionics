@@ -9,7 +9,7 @@ Fork-tracking record for this checkout of **pf1-psionics**.
   2026-09-16) on 2026-10-10
 - **Module version:** 0.9.3 (0.9.1 at time of forking)
 
-Four independent changes live on this branch. Each section below is written as a ready
+Five independent changes live on this branch (PR 5, added 2026-11-01, is pack data only). Each section below is written as a ready
 PR description — title, body, and the notes a reviewer will want — and should go upstream
 as its **own** branch and PR, in the order given. They touch unrelated subsystems and
 mixing them would make all four harder to review.
@@ -266,3 +266,30 @@ Two filter bugs, both visible as "Filter out empty sections" not hiding anything
 ## Testing
 
 `npm run lint` clean, `npm test` 115/115 passing. Not yet verified in Foundry.
+
+---
+
+# PR 5 – Type Oak Body's and Toughen's natural armor as natural armor bonuses
+
+**Branch:** `fix/natural-armor-types`
+**Files:** `packs-source/buffs/powers.9ybKxaq2jUL8O8NW/oak-body.a9MzZyEwL2TLZ7Hc.yaml`,
+`packs-source/buffs/powers.9ybKxaq2jUL8O8NW/toughen.31ESDFP0x23Ft3mN.yaml`
+**Type:** data fix · added 2026-11-01
+
+## Description
+
+Both buffs give natural armor as an `untyped` Change, which PF1 always stacks. Oak Body's power
+text says its +5 "overlaps (does not stack with) any natural armor bonus you may already have",
+and Toughen grants "a +1 natural armor bonus". Both Changes are now type `base`, which PF1 keeps
+only the highest of, so they overlap a creature's own natural armor and still add to enhancement
+bonuses (Barkskin, an amulet). Thicken Skin stays `untyped`: it increases the existing bonus.
+
+## Notes for the reviewer
+
+The type is the only edit, one line per file. Downstream this follows a rule for every natural
+armor source (base for the bonus itself, enh for enhancement, untyped for increases), written by
+a workspace script (pathfinder-db `tools/natural_armor.mjs`).
+
+## Testing
+
+Not yet verified in Foundry.
